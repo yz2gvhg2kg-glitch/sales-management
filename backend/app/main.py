@@ -35,7 +35,6 @@ async def health_check():
 @app.get("/api/debug")
 async def debug_info():
     """Debug endpoint to check DB connectivity and config."""
-    import traceback
     from app.core.database import AsyncSessionLocal
     from sqlalchemy import text
     info = {
@@ -53,6 +52,42 @@ async def debug_info():
         info["db_connected"] = False
         info["db_error"] = f"{type(e).__name__}: {str(e)}"
     return info
+
+
+@app.get("/api/init")
+async def init_database():
+    """One-time init: create tables + admin user."""
+    from app.core.database import engine, AsyncSessionLocal
+    from app.core.security import get_password_hash
+    from app.models.user import User, Base, UserRole
+    from app.models.product import Product
+    from app.models.customer import Customer
+    from app.models.order import Order, Shipment, AfterSales
+    from sqlalchemy import select
+
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Create admin user
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.username == "admin"))
+        admin = result.scalar_one_or_none()
+        if not admin:
+            admin = User(
+                username="admin",
+                password_hash=get_password_hash("admin123"),
+                real_name="超级管理员",
+                phone="13800000000",
+                role=UserRole.admin,
+                team="管理层",
+                commission_rate=0.0,
+                is_active=True,
+            )
+            session.add(admin)
+            await session.commit()
+            return {"status": "ok", "message": "Tables created + admin user created"}
+        return {"status": "ok", "message": "Tables created, admin already exists"}
 
 
 # Serve frontend static files (for single-service deployment)
