@@ -1,5 +1,6 @@
 """Database initialization script - creates tables and default admin user."""
 import asyncio
+import time
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
@@ -13,37 +14,49 @@ from app.models.order import Order, Shipment, AfterSales
 
 
 async def init_db():
-    engine = create_async_engine(settings.async_database_url, echo=True)
+    db_url = settings.async_database_url
+    print(f"Connecting to database: {db_url[:30]}...")
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    for attempt in range(5):
+        try:
+            engine = create_async_engine(db_url, echo=False, pool_size=3)
 
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
 
-    async with async_session() as session:
-        # Check if admin exists
-        result = await session.execute(select(User).where(User.username == "admin"))
-        admin = result.scalar_one_or_none()
+            async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-        if not admin:
-            admin = User(
-                username="admin",
-                password_hash=get_password_hash("admin123"),
-                real_name="超级管理员",
-                phone="13800000000",
-                role="admin",
-                team="管理层",
-                commission_rate=0.0,
-                is_active=True,
-            )
-            session.add(admin)
-            await session.commit()
-            print("✓ Default admin user created (admin / admin123)")
-        else:
-            print("✓ Admin user already exists")
+            async with async_session() as session:
+                result = await session.execute(select(User).where(User.username == "admin"))
+                admin = result.scalar_one_or_none()
 
-    await engine.dispose()
-    print("✓ Database initialized successfully")
+                if not admin:
+                    admin = User(
+                        username="admin",
+                        password_hash=get_password_hash("admin123"),
+                        real_name="超级管理员",
+                        phone="13800000000",
+                        role="admin",
+                        team="管理层",
+                        commission_rate=0.0,
+                        is_active=True,
+                    )
+                    session.add(admin)
+                    await session.commit()
+                    print("✓ Default admin user created (admin / admin123)")
+                else:
+                    print("✓ Admin user already exists")
+
+            await engine.dispose()
+            print("✓ Database initialized successfully")
+            return
+        except Exception as e:
+            print(f"✗ DB init attempt {attempt + 1}/5 failed: {e}")
+            if attempt < 4:
+                time.sleep(3)
+            else:
+                print("✗ All DB init attempts failed. App will start without DB init.")
+                raise
 
 
 if __name__ == "__main__":
