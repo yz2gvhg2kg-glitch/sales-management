@@ -1,7 +1,14 @@
 import request from '@/utils/request'
 
 // Auth
-export const login = (data) => request.post('/auth/login', data)
+export const login = (data) => {
+  const formData = new URLSearchParams()
+  formData.append('username', data.username)
+  formData.append('password', data.password)
+  return request.post('/auth/login', formData, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  })
+}
 export const getMe = () => request.get('/auth/me')
 
 // Users / Employees
