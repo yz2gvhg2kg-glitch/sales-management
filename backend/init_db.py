@@ -13,7 +13,7 @@ from app.models.order import Order, Shipment, AfterSales
 
 
 async def init_db():
-    engine = create_async_engine(settings.DATABASE_URL, echo=True)
+    engine = create_async_engine(settings.async_database_url, echo=True)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

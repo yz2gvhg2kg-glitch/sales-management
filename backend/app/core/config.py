@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
 
-    # Database
+    # Database - Railway provides DATABASE_URL as postgresql://...
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/sales_mgmt"
     DATABASE_ECHO: bool = False
 
@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+    @property
+    def async_database_url(self) -> str:
+        """Convert DATABASE_URL to asyncpg format."""
+        url = self.DATABASE_URL
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return url
 
 
 settings = Settings()
