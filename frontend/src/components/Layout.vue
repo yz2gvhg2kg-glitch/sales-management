@@ -2,7 +2,7 @@
   <el-container class="layout-container">
     <el-aside :width="isCollapse ? '64px' : '220px'" class="layout-aside">
       <div class="logo-container">
-        <img src="/logo.svg" alt="logo" class="logo-icon" v-if="isCollapse" />
+        <el-icon :size="28" color="#409EFF" v-if="isCollapse"><DataAnalysis /></el-icon>
         <span v-else class="logo-text">销售管理系统</span>
       </div>
       <el-menu
