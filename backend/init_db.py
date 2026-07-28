@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.models.user import User, Base
+from app.models.user import User, Base, UserRole
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.order import Order, Shipment, AfterSales
@@ -36,7 +36,7 @@ async def init_db():
                         password_hash=get_password_hash("admin123"),
                         real_name="超级管理员",
                         phone="13800000000",
-                        role="admin",
+                        role=UserRole.admin,
                         team="管理层",
                         commission_rate=0.0,
                         is_active=True,
