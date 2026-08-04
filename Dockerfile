@@ -14,9 +14,13 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install Python deps with serial single-thread, wheel-only to avoid OOM on Railway free tier
-COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir --only-binary :all: -r requirements.txt
+# Install Python deps in batches to avoid OOM on Railway free tier.
+# Each RUN is a new container layer → memory resets between layers.
+RUN pip install --no-cache-dir --only-binary :all: python-dotenv pydantic-settings
+RUN pip install --no-cache-dir --only-binary :all: asyncpg sqlalchemy
+RUN pip install --no-cache-dir --only-binary :all: python-jose passlib python-multipart
+RUN pip install --no-cache-dir --only-binary :all: fastapi uvicorn gunicorn
+RUN pip install --no-cache-dir --only-binary :all: openpyxl httpx
 
 # Copy backend code
 COPY backend/ ./
