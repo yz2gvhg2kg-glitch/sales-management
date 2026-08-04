@@ -41,10 +41,16 @@ async def migrate_schema(engine):
                 nullable = "NULL" if col.nullable else "NOT NULL"
                 default_sql = ""
                 if col.default is not None and col.default.is_scalar:
-                    if isinstance(col.default.arg, (int, float)):
-                        default_sql = f" DEFAULT {col.default.arg}"
-                    elif isinstance(col.default.arg, str):
-                        default_sql = f" DEFAULT '{col.default.arg}'"
+                    arg = col.default.arg
+                    # enum default: use .value ("unpaid" not "PaymentStatus.unpaid")
+                    if hasattr(arg, "value"):
+                        arg = arg.value
+                    if isinstance(arg, bool):
+                        default_sql = f" DEFAULT {str(arg).lower()}"
+                    elif isinstance(arg, (int, float)):
+                        default_sql = f" DEFAULT {arg}"
+                    elif isinstance(arg, str):
+                        default_sql = f" DEFAULT '{arg}'"
                 sql = f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {col.name} {col_type} {nullable}{default_sql}"
                 sync_conn.execute(text(sql))
                 added.append(f"{table_name}.{col.name}")
