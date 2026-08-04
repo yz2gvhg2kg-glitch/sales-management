@@ -3,7 +3,7 @@
 # ═══════════════════════════════════════════════════════
 
 # Stage 1: Build Frontend
-FROM node:20-alpine AS frontend-build
+FROM node:18-slim AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci --production=false && npm cache clean --force
@@ -11,13 +11,13 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Backend
-FROM python:3.12-slim
+FROM python:3.11-slim
 WORKDIR /app
 
-# System dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# System dependencies (minimal to avoid OOM on Railway free tier)
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+    libpq-dev gcc \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 # Python dependencies (layer caching)
 COPY backend/requirements.txt ./

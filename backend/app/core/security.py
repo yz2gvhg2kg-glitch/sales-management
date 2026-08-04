@@ -18,11 +18,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    # bcrypt truncates at 72 bytes internally; pre-truncate to avoid ValueError
+    return pwd_context.verify(plain_password[:72], hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    # bcrypt silently truncates at 72 bytes; pre-truncate to match verify behaviour
+    return pwd_context.hash(password[:72])
 
 
 # ── JWT Token ──
