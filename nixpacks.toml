@@ -1,18 +1,16 @@
 # Nixpacks configuration for Railway deployment
 # Python-only project. Frontend is pre-built locally and committed
 # to backend/static — no Node.js build happens on Railway.
-# NOTE: do NOT add gcc/gfortran — they collide in the Nix env.
-# NOTE: Nix Python is externally managed (PEP 668) → need --break-system-packages.
-# stdenv.cc.cc.lib provides libstdc++.so.6 required by asyncpg/greenlet wheels.
+# gcc12.cc.lib provides libstdc++.so.6 compatible with glibc 2.37
+# (gcc-12.3.0-lib from stdenv requires GLIBC_2.38 → version conflict).
 
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip", "stdenv.cc.cc.lib"]
+nixPkgs = ["python311", "python311Packages.pip", "gcc12.cc.lib"]
 
 [phases.install]
 cmds = [
-  "pip install --no-cache-dir --break-system-packages -r backend/requirements.txt",
-  "mkdir -p /app/libs && cp $(dirname $(find /nix/store -name 'libstdc++.so.6' | head -1))/libstdc++.so.6* /app/libs/ 2>/dev/null || true"
+  "pip install --no-cache-dir --break-system-packages -r backend/requirements.txt"
 ]
 
 [start]
-cmd = "export LD_LIBRARY_PATH=/app/libs:$LD_LIBRARY_PATH; cd backend && python init_db.py; python -m gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
+cmd = "export LD_LIBRARY_PATH=$(dirname $(find /nix/store -path '*gcc-12*lib*' -name 'libstdc++.so.6' | head -1)):$LD_LIBRARY_PATH; cd backend && python init_db.py; python -m gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
