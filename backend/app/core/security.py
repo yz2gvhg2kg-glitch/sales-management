@@ -48,7 +48,7 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ):
     """Validate JWT and return current user. Raise 401 if invalid."""
-    from app.models.user import User
+    from app.models.models import User  # noqa: F401 (imported for query)
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
