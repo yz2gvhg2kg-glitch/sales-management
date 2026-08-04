@@ -14,4 +14,4 @@ cmds = [
 ]
 
 [start]
-cmd = "cd backend && python init_db.py; gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
+cmd = "cd backend && python init_db.py; export LD_LIBRARY_PATH=/nix/var/nix/profiles/default/lib:$HOME/.nix-profile/lib:$LD_LIBRARY_PATH; python -m gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
