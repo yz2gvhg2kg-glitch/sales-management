@@ -10,8 +10,9 @@ nixPkgs = ["python311", "python311Packages.pip", "stdenv.cc.cc.lib"]
 
 [phases.install]
 cmds = [
-  "pip install --no-cache-dir --break-system-packages -r backend/requirements.txt"
+  "pip install --no-cache-dir --break-system-packages -r backend/requirements.txt",
+  "mkdir -p /app/libs && cp $(dirname $(find /nix/store -name 'libstdc++.so.6' | head -1))/libstdc++.so.6* /app/libs/ 2>/dev/null || true"
 ]
 
 [start]
-cmd = "cd backend && python init_db.py; export LD_LIBRARY_PATH=/nix/var/nix/profiles/default/lib:$HOME/.nix-profile/lib:$LD_LIBRARY_PATH; python -m gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
+cmd = "export LD_LIBRARY_PATH=/app/libs:$LD_LIBRARY_PATH; cd backend && python init_db.py; python -m gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
