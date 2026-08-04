@@ -103,9 +103,13 @@ async def init_database():
     from app.core.security import get_password_hash
     from app.models.models import User
     from sqlalchemy import select
+    from init_db import migrate_schema
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Add missing columns for existing tables (v2.0 schema upgrade)
+    await migrate_schema(engine)
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(

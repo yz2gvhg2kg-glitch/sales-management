@@ -12,6 +12,49 @@ from app.core.database import Base
 from app.models.models import User
 
 
+async def migrate_schema(engine):
+    """Add missing columns to existing tables (idempotent lightweight migration).
+
+    create_all only creates missing *tables* — it never alters existing ones.
+    v2.0 added new columns (email, stock, discount_amount, ...) so we ALTER
+    TABLE ADD COLUMN IF NOT EXISTS for anything the models declare but the
+    live DB does not have yet.
+    """
+    from sqlalchemy import inspect, text
+
+    async with engine.begin() as conn:
+        def _sync_inspect(sync_conn):
+            return inspect(sync_conn)
+
+        inspector = await conn.run_sync(_sync_inspect)
+        tables = inspector.get_table_names()
+
+        added = []
+        for table_name, table in Base.metadata.tables.items():
+            if table_name not in tables:
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table_name)}
+            for col in table.columns:
+                if col.name in existing:
+                    continue
+                col_type = col.type.compile(dialect=engine.dialect)
+                nullable = "NULL" if col.nullable else "NOT NULL"
+                default_sql = ""
+                if col.default is not None and col.default.is_scalar:
+                    if isinstance(col.default.arg, (int, float)):
+                        default_sql = f" DEFAULT {col.default.arg}"
+                    elif isinstance(col.default.arg, str):
+                        default_sql = f" DEFAULT '{col.default.arg}'"
+                sql = f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {col.name} {col_type} {nullable}{default_sql}"
+                await conn.execute(text(sql))
+                added.append(f"{table_name}.{col.name}")
+
+        if added:
+            print(f"✓ Migrated columns: {', '.join(added)}")
+        else:
+            print("✓ Schema up to date (no missing columns)")
+
+
 async def init_db():
     db_url = settings.async_database_url
     masked_url = db_url.split("@")[-1] if "@" in db_url else db_url[:30]
@@ -30,6 +73,9 @@ async def init_db():
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             print("✓ Tables created/verified")
+
+            # Add missing columns for existing tables (v2.0 schema upgrade)
+            await migrate_schema(engine)
 
             # Create admin user if not exists
             from app.core.database import AsyncSessionLocal
