@@ -73,7 +73,7 @@ async def init_db():
                 time.sleep(delay)
             else:
                 print("✗ All DB init attempts failed. Starting app anyway.")
-                raise
+                return False
 
 
 if __name__ == "__main__":

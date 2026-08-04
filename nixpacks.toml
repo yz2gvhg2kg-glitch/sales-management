@@ -3,9 +3,10 @@
 # to backend/static — no Node.js build happens on Railway.
 # NOTE: do NOT add gcc/gfortran — they collide in the Nix env.
 # NOTE: Nix Python is externally managed (PEP 668) → need --break-system-packages.
+# stdenv.cc.cc.lib provides libstdc++.so.6 required by asyncpg/greenlet wheels.
 
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip"]
+nixPkgs = ["python311", "python311Packages.pip", "stdenv.cc.cc.lib"]
 
 [phases.install]
 cmds = [
@@ -13,4 +14,4 @@ cmds = [
 ]
 
 [start]
-cmd = "cd backend && python init_db.py && gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
+cmd = "cd backend && python init_db.py; gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
