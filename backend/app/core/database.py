@@ -2,23 +2,30 @@
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import NullPool, QueuePool
+from sqlalchemy.pool import NullPool
 from sqlalchemy import text
 
 from app.core.config import settings
 
-# Use QueuePool in production, NullPool in tests
-poolclass = NullPool if settings.ENVIRONMENT == "test" else QueuePool
+# SQLAlchemy async engines support only AsyncAdaptedQueuePool (default)
+# or NullPool. Sync-only pool classes like QueuePool are not allowed.
+# Use NullPool only in tests to avoid cross-test connection leaks.
+poolclass = NullPool if settings.ENVIRONMENT == "test" else None
 
-engine = create_async_engine(
-    settings.async_database_url,
-    echo=settings.DATABASE_ECHO,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_recycle=settings.DB_POOL_RECYCLE,
-    pool_pre_ping=True,  # verify connections before use
-    poolclass=poolclass,
-)
+engine_kwargs: dict = {
+    "echo": settings.DATABASE_ECHO,
+    "pool_pre_ping": True,  # verify connections before use
+}
+if settings.ENVIRONMENT == "test":
+    engine_kwargs["poolclass"] = NullPool
+else:
+    # Production: use the asyncio-compatible default pool
+    # (AsyncAdaptedQueuePool) with explicit sizing.
+    engine_kwargs["pool_size"] = settings.DB_POOL_SIZE
+    engine_kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
+    engine_kwargs["pool_recycle"] = settings.DB_POOL_RECYCLE
+
+engine = create_async_engine(settings.async_database_url, **engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
