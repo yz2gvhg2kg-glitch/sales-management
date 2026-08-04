@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pathlib import Path
 
 from app.core.config import settings
@@ -52,6 +52,30 @@ async def log_requests(request: Request, call_next):
             f"[{request.client.host if request.client else 'unknown'}]"
         )
     return response
+
+
+@app.middleware("http")
+async def redirect_api_trailing_slash(request: Request, call_next):
+    """Redirect /api/xxx/ (trailing slash) → /api/xxx (no slash).
+
+    The frontend calls list endpoints with a trailing slash (e.g. GET /api/users/),
+    but the routers only define the no-slash path. The SPA catch-all would
+    otherwise swallow these requests and return 404.
+    """
+    path = request.url.path
+    if (
+        path.startswith("/api/")
+        and path != "/api/"
+        and path.endswith("/")
+        and request.method in ("GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE", "PATCH")
+    ):
+        new_path = path.rstrip("/")
+        if request.url.query:
+            new_url = f"{new_path}?{request.url.query}"
+        else:
+            new_url = new_path
+        return RedirectResponse(url=new_url, status_code=307)
+    return await call_next(request)
 
 
 # ── Exception handlers ──
