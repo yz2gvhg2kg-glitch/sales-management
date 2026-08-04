@@ -12,6 +12,17 @@ from app.core.database import Base
 from app.models.models import User
 
 
+def _safe_verify(hashed: str) -> bool:
+    """Return True if admin123 verifies against the stored hash.
+    Never raises: malformed/legacy hashes just count as 'not admin123'.
+    """
+    from app.core.security import verify_password
+    try:
+        return verify_password("admin123", hashed)
+    except Exception:
+        return False
+
+
 async def migrate_schema(engine):
     """Add missing columns to existing tables (idempotent lightweight migration).
 
@@ -88,6 +99,7 @@ async def init_db():
 
             # Create admin user if not exists
             from app.core.database import AsyncSessionLocal
+            from app.core.security import verify_password
             async with AsyncSessionLocal() as session:
                 result = await session.execute(
                     select(User).where(User.username == "admin")
@@ -113,6 +125,12 @@ async def init_db():
                     session.add(admin)
                     await session.commit()
                     print(f"✓ Default admin user created (admin / {admin_password})")
+                elif not _safe_verify(admin.password_hash):
+                    # Legacy admin with an unknown password → reset to default so
+                    # the freshly deployed v2.0 system is usable.
+                    admin.password_hash = get_password_hash("admin123")
+                    await session.commit()
+                    print("✓ Legacy admin password reset to admin123")
                 else:
                     print("✓ Admin user already exists")
 

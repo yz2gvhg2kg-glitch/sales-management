@@ -103,7 +103,7 @@ async def init_database():
     from app.core.security import get_password_hash
     from app.models.models import User
     from sqlalchemy import select
-    from init_db import migrate_schema
+    from init_db import migrate_schema, _safe_verify
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -130,6 +130,10 @@ async def init_database():
             session.add(admin)
             await session.commit()
             return {"status": "ok", "message": "Tables created + admin created (admin/admin123)"}
+        if not _safe_verify(admin.password_hash):
+            admin.password_hash = get_password_hash("admin123")
+            await session.commit()
+            return {"status": "ok", "message": "Tables up to date; legacy admin password reset (admin/admin123)"}
         return {"status": "ok", "message": "Tables already exist, admin exists"}
 
 
