@@ -99,9 +99,9 @@ async def debug_info():
 @app.get("/api/init")
 async def init_database():
     """One-time DB initialization: create tables + admin user."""
-    from app.core.database import engine, AsyncSessionLocal
+    from app.core.database import engine, AsyncSessionLocal, Base
     from app.core.security import get_password_hash
-    from app.models.models import User, Base
+    from app.models.models import User
     from sqlalchemy import select
 
     async with engine.begin() as conn:

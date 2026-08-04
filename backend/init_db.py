@@ -8,7 +8,8 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.models.models import User, Base
+from app.core.database import Base
+from app.models.models import User
 
 
 async def init_db():
