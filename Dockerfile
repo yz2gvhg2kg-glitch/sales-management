@@ -14,12 +14,9 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# No system packages: asyncpg + psycopg2-binary bundle libpq;
-# bcrypt wheels are pre-built. This avoids OOM on Railway free tier.
-
-# Python dependencies (layer caching)
+# Install Python deps with serial single-thread, wheel-only to avoid OOM on Railway free tier
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --only-binary :all: -j 1 -r requirements.txt
 
 # Copy backend code
 COPY backend/ ./
@@ -31,7 +28,7 @@ COPY --from=frontend-build /app/frontend/dist ./static
 RUN useradd -m -s /bin/bash appuser && chown -R appuser:appuser /app
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8080
 
 # Start: init DB then run with gunicorn + uvicorn
 CMD ["sh", "-c", "\
@@ -39,7 +36,7 @@ CMD ["sh", "-c", "\
     gunicorn app.main:app \
         -w 2 \
         -k uvicorn.workers.UvicornWorker \
-        --bind 0.0.0.0:${PORT:-8000} \
+        --bind 0.0.0.0:${PORT:-8080} \
         --access-logfile - \
         --error-logfile - \
         --timeout 120 \
