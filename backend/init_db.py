@@ -19,16 +19,16 @@ async def migrate_schema(engine):
     v2.0 added new columns (email, stock, discount_amount, ...) so we ALTER
     TABLE ADD COLUMN IF NOT EXISTS for anything the models declare but the
     live DB does not have yet.
+
+    NOTE: inspector.get_columns() is lazy — it executes SQL on first use, so
+    it MUST be called inside the run_sync() greenlet context. Doing it in
+    async context raises MissingGreenlet.
     """
     from sqlalchemy import inspect, text
 
-    async with engine.begin() as conn:
-        def _sync_inspect(sync_conn):
-            return inspect(sync_conn)
-
-        inspector = await conn.run_sync(_sync_inspect)
-        tables = inspector.get_table_names()
-
+    def _migrate_sync(sync_conn):
+        inspector = inspect(sync_conn)
+        tables = set(inspector.get_table_names())
         added = []
         for table_name, table in Base.metadata.tables.items():
             if table_name not in tables:
@@ -46,9 +46,12 @@ async def migrate_schema(engine):
                     elif isinstance(col.default.arg, str):
                         default_sql = f" DEFAULT '{col.default.arg}'"
                 sql = f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {col.name} {col_type} {nullable}{default_sql}"
-                await conn.execute(text(sql))
+                sync_conn.execute(text(sql))
                 added.append(f"{table_name}.{col.name}")
+        return added
 
+    async with engine.begin() as conn:
+        added = await conn.run_sync(_migrate_sync)
         if added:
             print(f"✓ Migrated columns: {', '.join(added)}")
         else:
