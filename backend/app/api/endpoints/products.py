@@ -1,4 +1,6 @@
+"""Product endpoints."""
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -6,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_admin, get_current_user
-from app.models.product import Product
+from app.models.models import Product
+from app.utils.response import serialize_product, make_paginated_response
 
 router = APIRouter()
 
@@ -18,6 +21,8 @@ class ProductCreate(BaseModel):
     cost: float = 0
     specs: Optional[str] = None
     sku: Optional[str] = None
+    stock: int = 0
+    image_url: Optional[str] = None
 
 
 class ProductUpdate(BaseModel):
@@ -27,6 +32,8 @@ class ProductUpdate(BaseModel):
     cost: Optional[float] = None
     specs: Optional[str] = None
     sku: Optional[str] = None
+    stock: Optional[int] = None
+    image_url: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -36,42 +43,31 @@ async def list_products(
     page_size: int = Query(20, ge=1, le=100),
     keyword: Optional[str] = None,
     category: Optional[str] = None,
+    include_inactive: bool = False,
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    query = select(Product).where(Product.is_active == True)
-    count_query = select(func.count(Product.id)).where(Product.is_active == True)
-
+    """List products."""
+    filters = []
+    if not include_inactive:
+        filters.append(Product.is_active == True)
     if keyword:
-        query = query.where(Product.name.contains(keyword))
-        count_query = count_query.where(Product.name.contains(keyword))
+        filters.append(Product.name.ilike(f"%{keyword}%"))
     if category:
-        query = query.where(Product.category == category)
-        count_query = count_query.where(Product.category == category)
+        filters.append(Product.category == category)
 
-    total = (await db.execute(count_query)).scalar()
+    from sqlalchemy import and_ as sa_and
+    base_where = sa_and(*filters) if filters else None
+
+    count_q = select(func.count(Product.id)).where(base_where) if base_where is not None else select(func.count(Product.id))
+    data_q = select(Product).where(base_where) if base_where is not None else select(Product)
+
+    total = (await db.execute(count_q)).scalar() or 0
     result = await db.execute(
-        query.order_by(Product.id.desc()).offset((page - 1) * page_size).limit(page_size)
+        data_q.order_by(Product.id.desc()).offset((page - 1) * page_size).limit(page_size)
     )
     products = result.scalars().all()
-
-    return {
-        "total": total,
-        "items": [
-            {
-                "id": p.id,
-                "name": p.name,
-                "category": p.category,
-                "price": p.price,
-                "cost": p.cost,
-                "specs": p.specs,
-                "sku": p.sku,
-                "is_active": p.is_active,
-                "created_at": p.created_at.isoformat() if p.created_at else None,
-            }
-            for p in products
-        ],
-    }
+    return make_paginated_response(products, total, page, page_size, serialize_product)
 
 
 @router.post("")
@@ -80,6 +76,7 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_admin),
 ):
+    """Create a product."""
     product = Product(**data.model_dump())
     db.add(product)
     await db.commit()
@@ -94,13 +91,13 @@ async def update_product(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_admin),
 ):
+    """Update a product."""
     result = await db.execute(select(Product).where(Product.id == product_id))
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="产品不存在")
 
-    update_data = data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
+    for key, value in data.model_dump(exclude_unset=True).items():
         setattr(product, key, value)
     await db.commit()
     return {"message": "更新成功"}
@@ -112,6 +109,7 @@ async def delete_product(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_admin),
 ):
+    """Soft-delete a product."""
     result = await db.execute(select(Product).where(Product.id == product_id))
     product = result.scalar_one_or_none()
     if not product:
@@ -119,3 +117,15 @@ async def delete_product(
     product.is_active = False
     await db.commit()
     return {"message": "已删除"}
+
+
+@router.get("/categories")
+async def get_categories(
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """List distinct product categories."""
+    result = await db.execute(
+        select(Product.category).where(Product.is_active == True, Product.category.isnot(None)).distinct()
+    )
+    return {"categories": [r[0] for r in result.all()]}

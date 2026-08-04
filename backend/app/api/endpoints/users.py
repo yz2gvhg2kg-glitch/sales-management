@@ -1,35 +1,75 @@
+"""User management endpoints."""
 from typing import Optional
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_admin, get_password_hash
-from app.models.user import User, UserRole
+from app.core.security import get_current_admin, get_current_user, get_password_hash
+from app.models.models import User, UserRole
+from app.utils.response import serialize_user, make_paginated_response
 
 router = APIRouter()
 
 
+# ── Schemas ──
 class UserCreate(BaseModel):
     username: str
     password: str
     real_name: str
     phone: Optional[str] = None
-    role: UserRole = UserRole.employee
+    email: Optional[str] = None
+    role: str = "employee"
     team: Optional[str] = None
     commission_rate: float = 0.0
+
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v):
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError('用户名至少3位')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if len(v) < 6:
+            raise ValueError('密码至少6位')
+        return v
+
+    @field_validator('role')
+    @classmethod
+    def validate_role(cls, v):
+        valid = [r.value for r in UserRole]
+        if v not in valid:
+            raise ValueError(f'角色无效，可选: {valid}')
+        return v
 
 
 class UserUpdate(BaseModel):
     real_name: Optional[str] = None
     phone: Optional[str] = None
-    role: Optional[UserRole] = None
+    email: Optional[str] = None
+    role: Optional[str] = None
     team: Optional[str] = None
     commission_rate: Optional[float] = None
+    avatar_url: Optional[str] = None
     is_active: Optional[bool] = None
+    password: Optional[str] = None
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if v is not None and len(v) < 6:
+            raise ValueError('密码至少6位')
+        return v
 
 
+# ── Endpoints ──
 @router.get("")
 async def list_users(
     page: int = Query(1, ge=1),
@@ -37,49 +77,39 @@ async def list_users(
     keyword: Optional[str] = None,
     role: Optional[str] = None,
     team: Optional[str] = None,
+    is_active: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_admin),
 ):
-    query = select(User)
-    count_query = select(func.count(User.id))
-
+    """List users with filters."""
+    filters = []
     if keyword:
-        query = query.where(
-            (User.real_name.contains(keyword)) | (User.username.contains(keyword))
-        )
-        count_query = count_query.where(
-            (User.real_name.contains(keyword)) | (User.username.contains(keyword))
+        filters.append(
+            (User.real_name.ilike(f"%{keyword}%")) | (User.username.ilike(f"%{keyword}%"))
         )
     if role:
-        query = query.where(User.role == role)
-        count_query = count_query.where(User.role == role)
+        filters.append(User.role == role)
     if team:
-        query = query.where(User.team == team)
-        count_query = count_query.where(User.team == team)
+        filters.append(User.team == team)
+    if is_active is not None:
+        filters.append(User.is_active == is_active)
 
-    total = (await db.execute(count_query)).scalar()
+    from sqlalchemy import and_ as sa_and
+    base_where = sa_and(*filters) if filters else None
+
+    count_q = select(func.count(User.id))
+    data_q = select(User)
+    if base_where is not None:
+        count_q = count_q.where(base_where)
+        data_q = data_q.where(base_where)
+
+    total = (await db.execute(count_q)).scalar() or 0
     result = await db.execute(
-        query.order_by(User.id.desc()).offset((page - 1) * page_size).limit(page_size)
+        data_q.order_by(User.id.desc()).offset((page - 1) * page_size).limit(page_size)
     )
     users = result.scalars().all()
 
-    return {
-        "total": total,
-        "items": [
-            {
-                "id": u.id,
-                "username": u.username,
-                "real_name": u.real_name,
-                "phone": u.phone,
-                "role": u.role.value,
-                "team": u.team,
-                "commission_rate": u.commission_rate,
-                "is_active": u.is_active,
-                "created_at": u.created_at.isoformat() if u.created_at else None,
-            }
-            for u in users
-        ],
-    }
+    return make_paginated_response(users, total, page, page_size, serialize_user)
 
 
 @router.post("")
@@ -88,8 +118,9 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_admin),
 ):
-    existing = await db.execute(select(User).where(User.username == data.username))
-    if existing.scalar_one_or_none():
+    """Create a new user."""
+    result = await db.execute(select(User).where(User.username == data.username))
+    if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="用户名已存在")
 
     user = User(
@@ -97,6 +128,7 @@ async def create_user(
         password_hash=get_password_hash(data.password),
         real_name=data.real_name,
         phone=data.phone,
+        email=data.email,
         role=data.role,
         team=data.team,
         commission_rate=data.commission_rate,
@@ -114,12 +146,20 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_admin),
 ):
+    """Update user info."""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
     update_data = data.model_dump(exclude_unset=True)
+    if 'password' in update_data and update_data['password']:
+        if len(update_data['password']) < 6:
+            raise HTTPException(status_code=400, detail="密码至少6位")
+        update_data['password_hash'] = get_password_hash(update_data.pop('password'))
+    else:
+        update_data.pop('password', None)
+
     for key, value in update_data.items():
         setattr(user, key, value)
     await db.commit()
@@ -132,6 +172,7 @@ async def disable_user(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_admin),
 ):
+    """Soft-delete user (disable)."""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -139,3 +180,34 @@ async def disable_user(
     user.is_active = False
     await db.commit()
     return {"message": "已禁用"}
+
+
+@router.post("/{user_id}/enable")
+async def enable_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_admin),
+):
+    """Re-enable a disabled user."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    user.is_active = True
+    await db.commit()
+    return {"message": "已启用"}
+
+
+@router.get("/simple")
+async def list_users_simple(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return simple user list (for dropdowns/selectors)."""
+    query = select(User.id, User.real_name, User.team, User.role).where(User.is_active == True)
+    result = await db.execute(query)
+    users = [
+        {"id": r[0], "real_name": r[1], "team": r[2], "role": r[3].value if hasattr(r[3], 'value') else r[3]}
+        for r in result.all()
+    ]
+    return {"items": users}

@@ -1,14 +1,35 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-gunicorn==21.2.0
-sqlalchemy==2.0.23
-asyncpg==0.29.0
-alembic==1.13.0
-pydantic==2.5.2
-pydantic-settings==2.1.0
+# Web Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+gunicorn==23.0.0
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+alembic==1.14.1
+
+# Redis
+redis==5.2.1
+hiredis==2.3.2
+
+# Auth
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
-openpyxl==3.1.2
-pandas==2.1.4
-httpx==0.25.2
+python-multipart==0.0.18
+
+# File Processing
+openpyxl==3.1.5
+python-dotenv==1.0.1
+
+# Validation
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# HTTP
+httpx==0.28.1
+aiofiles==24.1.0
+
+# Monitoring (optional)
+prometheus-fastapi-instrumentator==7.0.0
