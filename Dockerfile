@@ -14,10 +14,8 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# System dependencies (minimal to avoid OOM on Railway free tier)
-RUN apt-get update -qq && apt-get install -y --no-install-recommends \
-    libpq-dev gcc \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+# No system packages: asyncpg + psycopg2-binary bundle libpq;
+# bcrypt wheels are pre-built. This avoids OOM on Railway free tier.
 
 # Python dependencies (layer caching)
 COPY backend/requirements.txt ./
