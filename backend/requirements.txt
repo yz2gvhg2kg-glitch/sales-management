@@ -6,12 +6,6 @@ gunicorn==23.0.0
 # Database
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
-psycopg2-binary==2.9.10
-alembic==1.14.1
-
-# Redis
-redis==5.2.1
-hiredis==2.3.2
 
 # Auth
 python-jose[cryptography]==3.3.0
@@ -23,13 +17,10 @@ openpyxl==3.1.5
 python-dotenv==1.0.1
 
 # Validation
-pydantic==2.10.4
 pydantic-settings==2.7.0
 email-validator==2.2.0
 
 # HTTP
 httpx==0.28.1
-aiofiles==24.1.0
 
-# Monitoring (optional)
-prometheus-fastapi-instrumentator==7.0.0
+
