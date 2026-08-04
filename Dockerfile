@@ -10,24 +10,19 @@ RUN npm ci --production=false && npm cache clean --force
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: Backend
-FROM python:3.11-slim
+# Stage 2: Backend (Alpine ~50MB, 3x lighter than slim ~150MB)
+FROM python:3.11-alpine
 WORKDIR /app
 
-# One package per RUN to avoid OOM on Railway free tier.
-# No --only-binary: that flag pre-loads wheel metadata, adding memory pressure.
-RUN pip install --no-cache-dir python-dotenv
-RUN pip install --no-cache-dir pydantic-settings
-RUN pip install --no-cache-dir asyncpg
-RUN pip install --no-cache-dir sqlalchemy
-RUN pip install --no-cache-dir python-jose
-RUN pip install --no-cache-dir passlib
-RUN pip install --no-cache-dir python-multipart
-RUN pip install --no-cache-dir fastapi
-RUN pip install --no-cache-dir uvicorn
-RUN pip install --no-cache-dir gunicorn
-RUN pip install --no-cache-dir openpyxl
-RUN pip install --no-cache-dir httpx
+# Alpine needs build deps for packages with C extensions
+RUN apk add --no-cache gcc musl-dev libffi-dev
+
+# Single pip install — Alpine base image leaves enough memory on Railway
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Remove build deps to slim final image
+RUN apk del gcc musl-dev libffi-dev
 
 # Copy backend code
 COPY backend/ ./
@@ -35,8 +30,8 @@ COPY backend/ ./
 # Copy built frontend
 COPY --from=frontend-build /app/frontend/dist ./static
 
-# Create non-root user
-RUN useradd -m -s /bin/bash appuser && chown -R appuser:appuser /app
+# Create non-root user (Alpine: use adduser, no bash)
+RUN adduser -D appuser && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8080
