@@ -1,15 +1,14 @@
 # Nixpacks configuration for Railway deployment
 # Python-only project. Frontend is pre-built locally and committed
 # to backend/static — no Node.js build happens on Railway.
-# NOTE: do NOT add gcc/gfortran here — they collide in the Nix env
-# (both provide /bin/cpp). All deps have manylinux wheels.
+# NOTE: do NOT add gcc/gfortran — they collide in the Nix env.
+# Nix python3 does NOT bundle pip — must add python311Packages.pip.
 
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "python311Packages.pip"]
 
 [phases.install]
 cmds = [
-  "python3 -m pip install --no-cache-dir --upgrade pip",
   "pip install --no-cache-dir -r backend/requirements.txt"
 ]
 
