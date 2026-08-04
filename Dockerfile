@@ -16,7 +16,7 @@ WORKDIR /app
 
 # Install Python deps with serial single-thread, wheel-only to avoid OOM on Railway free tier
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir --only-binary :all: -j 1 -r requirements.txt
+RUN pip install --no-cache-dir --only-binary :all: -r requirements.txt
 
 # Copy backend code
 COPY backend/ ./
