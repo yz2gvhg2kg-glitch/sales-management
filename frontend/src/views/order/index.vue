@@ -28,21 +28,19 @@
 
     <div class="table-container">
       <el-table :data="tableData" v-loading="loading" border stripe>
-        <el-table-column prop="order_no" label="订单号" width="160" />
-        <el-table-column prop="customer_name" label="客户" width="100" />
-        <el-table-column prop="product_name" label="产品" width="150" show-overflow-tooltip />
-        <el-table-column prop="quantity" label="数量" width="70" />
-        <el-table-column prop="amount" label="金额" width="100">
-          <template #default="{ row }">¥{{ row.amount?.toFixed(2) }}</template>
+        <el-table-column prop="order_date" label="日期" width="110" />
+        <el-table-column prop="product_name" label="货品名称" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="order_no" label="订单号" width="150" show-overflow-tooltip />
+        <el-table-column prop="customer_name" label="姓名" width="100" show-overflow-tooltip />
+        <el-table-column prop="customer_phone" label="手机号" width="120" />
+        <el-table-column prop="address" label="地址" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="tracking_no" label="快递单号" width="140" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="下单时间" width="160" />
+        <el-table-column label="价格" width="110">
+          <template #default="{ row }">¥{{ (row.actual_amount ?? row.total_amount ?? 0).toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column prop="salesperson_name" label="业务员" width="100" />
-        <el-table-column prop="status" label="状态" width="90">
-          <template #default="{ row }">
-            <el-tag :type="orderStatusType[row.status]">{{ orderStatusMap[row.status] }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column prop="channel" label="渠道" width="100" show-overflow-tooltip />
+        <el-table-column label="操作" width="90" fixed="right">
           <template #default="{ row }">
             <el-button size="small" v-if="canAfterSales(row)" @click="showAfterSalesDialog(row)">售后</el-button>
           </template>

@@ -58,12 +58,13 @@ def serialize_user(user) -> dict:
     }
 
 
-def serialize_order(order) -> dict:
+def serialize_order(order, tracking_no: Optional[str] = None) -> dict:
     return {
         "id": order.id,
         "order_no": order.order_no,
         "customer_name": order.customer_name,
         "customer_phone": order.customer_phone,
+        "address": getattr(order, 'address', None),
         "product_name": order.product_name,
         "quantity": order.quantity,
         "unit_price": order.unit_price,
@@ -71,6 +72,7 @@ def serialize_order(order) -> dict:
         "cost_amount": order.cost_amount,
         "discount_amount": order.discount_amount,
         "actual_amount": order.actual_amount,
+        "tracking_no": tracking_no,
         "payment_status": order.payment_status.value if hasattr(order.payment_status, 'value') else order.payment_status,
         "salesperson_id": order.salesperson_id,
         "source": order.source,

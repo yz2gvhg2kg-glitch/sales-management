@@ -137,6 +137,7 @@ class Order(BaseModel):
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     customer_name = Column(String(100), nullable=True)
     customer_phone = Column(String(20), nullable=True)
+    address = Column(String(500), nullable=True)  # NEW: 收货地址
     product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
     product_name = Column(String(200), nullable=True)
     quantity = Column(Integer, default=1)

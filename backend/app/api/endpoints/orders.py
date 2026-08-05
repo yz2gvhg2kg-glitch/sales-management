@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user, get_current_admin
-from app.models.models import Order, OrderStatus, AfterSales, AfterSalesType, AfterSalesStatus, User
+from app.models.models import Order, OrderStatus, AfterSales, AfterSalesType, AfterSalesStatus, User, Shipment
 from app.utils.helpers import generate_order_no, safe_int, safe_float, safe_str, parse_excel
 from app.utils.response import serialize_order, make_paginated_response
 
@@ -111,7 +111,22 @@ async def list_orders(
     )
     orders = result.scalars().all()
 
-    return make_paginated_response(orders, total, page, page_size, serialize_order)
+    # Attach tracking_no from shipments (one shipment per order, or latest)
+    tracking_map = {}
+    if orders:
+        order_ids = [o.id for o in orders]
+        ship_q = (
+            select(Shipment.order_id, Shipment.tracking_no)
+            .where(Shipment.order_id.in_(order_ids))
+            .order_by(Shipment.id.desc())
+        )
+        ship_result = await db.execute(ship_q)
+        for s_order_id, s_tracking in ship_result.all():
+            if s_order_id not in tracking_map and s_tracking:
+                tracking_map[s_order_id] = s_tracking
+
+    items = [serialize_order(o, tracking_map.get(o.id)) for o in orders]
+    return make_paginated_response(items, total, page, page_size)
 
 
 @router.post("")
