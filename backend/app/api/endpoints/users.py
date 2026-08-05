@@ -167,19 +167,61 @@ async def update_user(
 
 
 @router.delete("/{user_id}")
-async def disable_user(
+async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_admin),
+    current_admin: User = Depends(get_current_admin),
 ):
-    """Soft-delete user (disable)."""
+    """Hard-delete user (with safety guards).
+    - Cannot delete yourself.
+    - Cannot delete the last active admin.
+    - Cannot delete users with orders (FK constraint) - suggest disabling instead.
+    - Reassign/clear customers.assigned_to and after_sales.handler_id.
+    """
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
-    user.is_active = False
+
+    if user.id == current_admin.id:
+        raise HTTPException(status_code=400, detail="不能删除自己")
+
+    if user.role == UserRole.admin:
+        admin_count = (
+            await db.execute(
+                select(func.count(User.id)).where(
+                    User.role == UserRole.admin, User.is_active == True
+                )
+            )
+        ).scalar() or 0
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="不能删除最后一个管理员")
+
+    # Users with orders cannot be hard-deleted (FK orders.salesperson_id NOT NULL)
+    from app.models.models import Order
+    order_count = (
+        await db.execute(
+            select(func.count(Order.id)).where(Order.salesperson_id == user_id)
+        )
+    ).scalar() or 0
+    if order_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"该员工有 {order_count} 条订单记录，不能删除；请使用「禁用」",
+        )
+
+    # Clear FK references before delete
+    from app.models.models import Customer, AfterSales
+    await db.execute(
+        Customer.__table__.update().where(Customer.assigned_to == user_id).values(assigned_to=None)
+    )
+    await db.execute(
+        AfterSales.__table__.update().where(AfterSales.handler_id == user_id).values(handler_id=None)
+    )
+
+    await db.delete(user)
     await db.commit()
-    return {"message": "已禁用"}
+    return {"message": "删除成功"}
 
 
 @router.post("/{user_id}/enable")

@@ -42,12 +42,13 @@
             <el-tag :type="row.is_active ? 'success' : 'danger'">{{ row.is_active ? '启用' : '禁用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="showDialog(row)">编辑</el-button>
             <el-button size="small" :type="row.is_active ? 'danger' : 'success'" @click="toggleStatus(row)">
               {{ row.is_active ? '禁用' : '启用' }}
             </el-button>
+            <el-button size="small" type="danger" plain @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -104,7 +105,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { getUsers, createUser, updateUser } from '@/api'
+import { getUsers, createUser, updateUser, deleteUser } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const roleMap = { admin: '管理员', manager: '主管', employee: '员工' }
@@ -203,6 +204,17 @@ const toggleStatus = async (row) => {
   await ElMessageBox.confirm(`确定要${action}员工"${row.real_name}"吗？`, '提示', { type: 'warning' })
   await updateUser(row.id, { is_active: !row.is_active })
   ElMessage.success(`${action}成功`)
+  fetchData()
+}
+
+const handleDelete = async (row) => {
+  await ElMessageBox.confirm(`确定要删除员工"${row.real_name}"吗？\n该操作会从数据库中彻底删除，不可恢复！`, '删除确认', {
+    type: 'warning',
+    confirmButtonText: '删除',
+    confirmButtonClass: 'el-button--danger',
+  })
+  await deleteUser(row.id)
+  ElMessage.success('删除成功')
   fetchData()
 }
 
