@@ -2,13 +2,17 @@
 import time
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pathlib import Path
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.database import get_db
+from app.core.security import get_current_user
+from app.models.models import User
 from app.api.router import api_router
 
 # ── Logging ──
@@ -95,6 +99,21 @@ app.include_router(api_router, prefix="/api")
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "version": settings.APP_VERSION, "timestamp": int(time.time())}
+
+
+@app.get("/api/dashboard")
+async def dashboard_alias(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Alias for GET /api/dashboard → same logic as /api/statistics/dashboard.
+
+    The frontend (src/api/index.js getDashboard) calls /api/dashboard/,
+    which the trailing-slash middleware redirects to /api/dashboard.
+    """
+    from app.api.endpoints.statistics import get_dashboard
+    return await get_dashboard(db=db, current_user=current_user)
 
 
 @app.get("/api/debug")
