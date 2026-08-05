@@ -10,3 +10,4 @@ backend/static/
 *.egg-info/
 .DS_Store
 uploads/
+package.json

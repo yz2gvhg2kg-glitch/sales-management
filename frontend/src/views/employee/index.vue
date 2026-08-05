@@ -124,10 +124,26 @@ const form = reactive({
 })
 
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, message: '用户名至少3位', trigger: 'blur' },
+  ],
   real_name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码至少6位', trigger: 'blur' },
+  ],
   role: [{ required: true, message: '请选择角色', trigger: 'change' }],
+  phone: [
+    {
+      validator: (rule, value, callback) => {
+        if (!value) return callback()
+        if (!/^1[3-9]\d{9}$/.test(value)) return callback(new Error('手机号格式不正确'))
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
 }
 
 const fetchData = async () => {

@@ -35,9 +35,21 @@ request.interceptors.response.use(
         case 403:
           ElMessage.error('没有权限执行此操作')
           break
-        case 422:
-          ElMessage.error(response.data?.detail || '请求参数错误')
+        case 422: {
+          // FastAPI 422 detail is an array: [{loc, msg, type}]
+          const detail = response.data?.detail
+          if (Array.isArray(detail) && detail.length > 0) {
+            // Extract human-readable messages (strip FastAPI prefix like "Value error, ")
+            const msgs = detail.map(e => {
+              const raw = e.msg || String(e)
+              return raw.replace(/^Value error[,\s]*/i, '')
+            })
+            ElMessage.error(msgs.join('；'))
+          } else {
+            ElMessage.error(typeof detail === 'string' ? detail : '请求参数错误')
+          }
           break
+        }
         default:
           ElMessage.error(response.data?.detail || '服务器错误')
       }
