@@ -21,6 +21,7 @@ router = APIRouter()
 class OrderCreate(BaseModel):
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
+    address: Optional[str] = None
     product_name: str
     product_id: Optional[int] = None
     quantity: int = 1
@@ -194,15 +195,17 @@ async def import_orders(
 
     # Field mapping: Chinese OR English headers
     field_map = {
-        "customer_name": ["客户姓名", "客户名称", "customer_name", "客户"],
-        "customer_phone": ["电话", "手机", "phone", "customer_phone"],
-        "product_name": ["产品", "产品名称", "product_name"],
+        "customer_name": ["客户姓名", "客户名称", "customer_name", "客户", "姓名"],
+        "customer_phone": ["电话", "手机", "手机号", "phone", "customer_phone"],
+        "address": ["地址", "收货地址", "address"],
+        "product_name": ["产品", "产品名称", "货品名称", "product_name"],
         "quantity": ["数量", "quantity"],
         "unit_price": ["单价", "unit_price"],
         "total_amount": ["总金额", "金额", "total_amount"],
         "cost_amount": ["成本", "cost", "cost_amount"],
         "discount_amount": ["优惠", "优惠金额", "discount"],
-        "source": ["来源", "渠道", "source", "channel"],
+        "channel": ["渠道", "channel"],
+        "source": ["来源", "source"],
         "remark": ["备注", "remark"],
     }
 
@@ -219,12 +222,14 @@ async def import_orders(
             order_no=order_no,
             customer_name=safe_str(get_field("customer_name")),
             customer_phone=safe_str(get_field("customer_phone")),
+            address=safe_str(get_field("address")),
             product_name=safe_str(get_field("product_name"), "未知产品"),
             quantity=safe_int(get_field("quantity"), 1),
             unit_price=safe_float(get_field("unit_price")),
             total_amount=safe_float(get_field("total_amount")),
             cost_amount=safe_float(get_field("cost_amount")),
             discount_amount=safe_float(get_field("discount_amount")),
+            channel=safe_str(get_field("channel")),
             source=safe_str(get_field("source")),
             remark=safe_str(get_field("remark")),
             salesperson_id=sp_id,
